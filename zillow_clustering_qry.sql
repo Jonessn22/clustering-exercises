@@ -1,42 +1,45 @@
 /*
-SQL PRACTICE, ARTICLE "How to Use the SQL GROUP BY Clause and Aggregate Functions" BY TERENCE SHIN 
-(https://towardsdatascience.com/how-to-use-the-sql-group-by-clause-and-aggregate-functions-cbaef410be91)
+SQL QUERY TO ACQUIRE ZILLOW DATA
 */
 
-/*displaying the whole table*/
-SELECT * 
-FROM albums;
+SELECT prop.*,
+# SELECT ALL FROM PROPERTIES
 
-/*showing the total count of artists listed, and the number of unique artist names*/
-SELECT COUNT(DISTINCT artist) AS 'unique artists',
-	COUNT(artist) AS 'total artists'
-FROM albums;
+       pred.logerror, 
+       pred.transactiondate, 
+       # SELECT LOGERROR AND TRANSACTIONDATE COLUMNS FROM PREDICTIONS
+       
+       air.airconditioningdesc, 
+       arch.architecturalstyledesc, 
+       build.buildingclassdesc, 
+       heat.heatingorsystemdesc, 
+       landuse.propertylandusedesc, 
+       story.storydesc, 
+       construct.typeconstructiondesc
+       #SELECT THESE COLUMNS FROM THESE TABLES
 
-/*trying to show count for albumbs with 1980 release date; ERROR: "execute command denied to user 'hopper_1546'@'%' for routine 'albums_db.COUNTIF'"*/
-SELECT COUNTIF(release_date = 1980)  AS count
-FROM albums;
-
-/*taking the sum of total album sales*/
-SELECT SUM(sales)
-FROM albums;
-
-/*total sales by genre*/
-SELECT genre, SUM(sales) AS sales_by_genre
-FROM albums
-GROUP BY genre;
-
-/*avergae sales by genre*/
-SELECT genre, AVG(sales) AS avg_sales_by_genre
-FROM albums
-GROUP BY genre;
-
-/*average release date and sales*/
-SELECT AVG(release_date) AS avg_release_date,
-	AVG(sales) AS avg_sales
-FROM albums;
-
-/*average sales by release year*/
-SELECT release_date, AVG(sales) AS sales_by_release_date
-FROM albums
-GROUP BY release_date;
-
+FROM   properties_2017 prop  
+       INNER JOIN (SELECT parcelid,
+       					  logerror,
+                          Max(transactiondate) transactiondate 
+                   FROM   predictions_2017
+                    # THIS INNER JOIN WILL ONLY RETURN THE RESULTS OF THE TABLES IF THEY HAVE VALUES THAT MATCH TO THE OTHER
+                   
+                   GROUP  BY parcelid, logerror) pred
+                   # THE RESULTS WILL BE GROUPED BY PARCELID (AND LOGERROR?)
+               USING (parcelid) 
+               # THEY WILL BE JOINED ON THE COLUMN PARCELID
+               
+       LEFT JOIN airconditioningtype air USING (airconditioningtypeid) 
+       LEFT JOIN architecturalstyletype arch USING (architecturalstyletypeid) 
+       LEFT JOIN buildingclasstype build USING (buildingclasstypeid) 
+       LEFT JOIN heatingorsystemtype heat USING (heatingorsystemtypeid) 
+       LEFT JOIN propertylandusetype landuse USING (propertylandusetypeid) 
+       LEFT JOIN storytype story USING (storytypeid) 
+       LEFT JOIN typeconstructiontype construct USING (typeconstructiontypeid) 
+       # THESE LEFT JOINS WILL BE ADDED TO MAIN PROPERTIES TABLE QUERY RESULT IF THEY HAVE A CORRESPONDING VALUE
+       
+WHERE  prop.latitude IS NOT NULL 
+       AND prop.longitude IS NOT NULL AND transactiondate <= '2017-12-31'
+       # THIS WILL FILTER OUT ANY RESULTS WHERE THE LAT OR LONG VALUES ARE NULL AND WHERE THE TRANS DATA WAS BEFORE 2018 ; 
+       
