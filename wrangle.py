@@ -19,19 +19,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
 
-###############################################################| CONNECTION FUNCTION
-def get_connection(db):
-    '''
-THIS FUNCTION TAKES IN A DB FROM SQL SERVER AND USES THE SERVER CREDENTIALS FROM ENV
-FILE TO RETURN A STRING THAT WILL BE USED TO CONNECT TO THE SQL SERVER. 
-    '''
-    #server access credentials
-#    from env import host, user, password
-    
-    #url connection string
-    return f'mysql+pymysql://{env.user}:{env.password}@{env.host}/{db}'
-
-
 ###############################################################| SQL QUERY
 qry_zillow = '''
 SELECT prop.*, 
@@ -65,33 +52,144 @@ WHERE  prop.latitude IS NOT NULL
 
 
 ###############################################################| ACQUIRE DATA FUNCTION
-def acquire_data(file_name, db, qry):
+def acquire_data(file_name, database, query):
     '''
-THIS FUNCTION TAKES IN A CSV FILE NAME, A DB FROM THE SQL SERVER, AND A SQL QUERY. IF THE 
-FILE EXISTS IN THE LOCAL DIRECTORY IT WILL WRITE IT TO A DF. IF IT DOES NOT IT WILL USE THE 
-DB AND CONNECTION FUNCTION TO WRITE THE SQL QUERY TO A DB AND THEN WRITE THE QUERY TO A CSV 
-TO BE SAVED LOCALLY.
+THIS FUNCTION TAKES IN:
+    (1) A CSV FILE NAME ***MAKE SURE YOU INCLUDE .CSV EXT*** 
+    (2) DATABASE NAME AND 
+    (3) SQL QUERY STRING 
+AND RETURNS A PANDAS DF BY:
+        (i.) CHECKING TO SEE IF LOCAL CSV FILE WITH DATA EXISTS
+        (ii.) WRITING THE LOCAL CSV FILE OT PANDAS DF 
+OR, IF LOCAL CSV DOES NOT EXIST:
+        (i.) IMPORTING DATABASE CONNECTION CREDENTIALS
+        (ii.) USING CREDENTIALS TO CREATE DATABASE CONNECTION STRING
+        (iii.) READING THE SQL QUERY INTO A DF
+        (iv.) CACHING DF AND SAVING DATA AS LOCAL CSV FILE
     '''
-    
-    # if csv data file already exists in local directory...
+    # checking for local csv file
     if os.path.isfile(file_name):
         
-        # write the data to dataframe
+        # reading csv file to pandas df
         df = pd.read_csv(file_name)
-    
-    # if csv data file does not exist in local direction ...
+        
+    # or, if no local csv file
     else:
-        
-        #url string from preceding function, uses to establish server connection
-        url = get_connection(db)
 
-        #writing sql query to df
-        df = pd.read_sql(qry, url)
+        # url database connection string 
+        url = f'mysql+pymysql://{user}:{password}@{host}/{database}'
+
+        # reading sql query into df using sql query and url string
+        df = pd.read_sql(query, url)
         
-        #saving data as a csv file locally
+        # write df to local csv file
         df.to_csv(file_name)
     
-    return df
+    return df 
 
 
-###############################################################| 
+###############################################################| SUMMARIZE DATA FUNCTION
+def summarize_data(df, num_unique_cols):
+    '''
+THIS FUNCTIONS TAKES IN A DATAFRAME AND THE MAX NUMBER OF UNIQUE COLUMN VALUES TO 
+PRINT VALUE_COUNTS FOR AND PRINTS THE FOLLOWING SUMMARY INFORMATION:
+    1) DF SHAPE, NUMBER OF ROWS AND COLUMNS
+    2) DF INFO
+    3) THE UNIQUE VALUES IN THE DF COLUMNS (NUMBER AND, IF <= 10, EACH UNIQUE VALUE)
+    4) THE DESCRIPTIVE STATS FOR THE DF NUMERICAL COLUMNS
+RETURNING A PREVIEW, THE FIRST FIVE ROWS, OF THE DATAFRAME
+    '''
+    
+    preview = df.head()
+    
+    print('1) DataFrame Shape'.upper())
+    print('-' * len('DataFrame Shape'))
+    print(f'Rows: {df.shape[0]}\nColumns: {df.shape[1]}')
+    print()
+    print()
+    
+    print('2) DataFrame Info'.upper())
+    print('-' * len('DataFrame Info'))
+    print(df.info())
+    print()
+    print()
+    
+    print('3) Unique Values by Column'.upper())
+    print('-' * len('Unique Values by Column'))
+    
+    unique_cols = []
+    for col in df.columns:
+        if df[col].nunique() <= num_unique_cols:
+            print(col.upper())
+            print('-' * len(col))
+            print(f'Number of Unique Values for {col}: {df[col].nunique()}')
+            print(df[col].value_counts(dropna = False))
+            unique_cols.append(col)
+            print()
+            
+        else:
+            print(col.upper())
+            print('-' * len(col))
+            print(f'Number of Unique Values for {col}: {df[col].nunique()}')
+            print(f'This column has > {num_unique_cols} values')
+            print()
+        print()
+            
+    print()
+    print('4) Descriptive Stats'.upper())
+    print('-' * len('Descriptive Stats'))
+    print(df.describe())
+    print()
+            
+    return preview
+
+###############################################################| PLOT COLUMN HISTOGRAMS FUNCTIONS
+def hist_data(df):
+    '''
+THIS FUNCTION TAKES IN A DF AND PLOTS A HISTOGRAM FOR EACH COLUMN.
+    '''
+    df.hist(figsize=((36), 32), bins=20)
+    plt.tight_layout();
+    
+###############################################################| NULL FUNCTIONS
+def nulls_by_col(df):
+    '''
+THIS FUNCTION TAKES IN A DATAFRAME AND RETURNS THE NUMBER OF ROWS MISSING FOR EACH COLUMN AND THE 
+PERCENTAGE OF MISSING MISSING ROWS TO TOTAL ROWS. THE VALUES ARE SORTED IN DESCENDING ORDER BY THE PERCENTAGE MISSING.
+
+LASTLY, THE NUMBER OF MISSING ROWS FOR EACH COLUMN IS PLOTTED IN A HISTOGRAM.
+    '''
+
+    num_missing_rows = df.isnull().sum()
+    rows = df.shape[0]
+    pct_missing = num_missing_rows / rows
+    
+    nulls_by_col_df = pd.DataFrame({'num_missing_rows': num_missing_rows, 'pct_rows_missing': pct_missing})\
+    .sort_values(by = 'pct_rows_missing', ascending = False)\
+    .reset_index().rename(columns = {'index': 'attribute'})
+    
+    nulls_by_col_df.num_missing_rows.hist(figsize=(8, 4), bins = 100)
+    plt.title('Distribution of Missing Rows for Each Column')
+    
+    return nulls_by_col_df
+
+def nulls_by_row(df):
+    '''
+THIS FUNCTION TAKES IN A DATAFRAME AND RETURNS INFORMATION ABOUT THE NUMBER OF COLUMN VALUES
+MISSING FROM EACH ROW. 
+    1) COL 1 IS THE NUMBER OF COLUMN VALUES MISSING
+    2) COL 2 IS THE NUMBER OF ROWS WITH THAT MANY (COL 1) COLUMN VALUES MISSING
+    3) COL 3 IS THE PERCENTAGE OF COLUMN VALUES MISSING TO THE TOTAL NUMBER OF COLUMNS
+    
+THIS INFORMATION IS RETURNED IN THE FORM OF A DATAFRAME AND SORTED IN DESCENDING ORDER BY THE
+PERCENTAGE OF COLUMN VALUES MISSING.
+    '''
+    
+    df2 = pd.DataFrame(df.isnull().sum(axis = 1), columns = ['num_cols_missing']).reset_index()\
+    .groupby('num_cols_missing').count().reset_index().rename(columns = {'index': 'num_rows'})
+    
+    df2['pct_cols_missing'] = df2.num_cols_missing / df.shape[1]
+    
+    df2 = df2.sort_values(by = 'pct_cols_missing', ascending = False)
+    
+    return df2
