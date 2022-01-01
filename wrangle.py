@@ -1,4 +1,6 @@
-##################################################################################| FILE USED TO ACQUIRE AND WRANGLE ZILLOW
+##################################################################################| FILE USED TO WRANGLE ZILLOW
+
+
 
 ###############################################################| IMPORTS
 import os
@@ -18,6 +20,8 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 
+
+##################################################################################| ACQUIRE
 
 ###############################################################| SQL QUERY
 qry_zillow = '''
@@ -87,6 +91,7 @@ OR, IF LOCAL CSV DOES NOT EXIST:
     
     return df 
 
+##################################################################################| SUMMARIZE AND VISUALIZE
 
 ###############################################################| SUMMARIZE DATA FUNCTION
 def summarize_data(df, num_unique_cols):
@@ -144,6 +149,7 @@ RETURNING A PREVIEW, THE FIRST FIVE ROWS, OF THE DATAFRAME
     return preview
 
 ###############################################################| PLOT COLUMN HISTOGRAMS FUNCTIONS
+
 def hist_data(df):
     '''
 THIS FUNCTION TAKES IN A DF AND PLOTS A HISTOGRAM FOR EACH COLUMN.
@@ -173,6 +179,7 @@ LASTLY, THE NUMBER OF MISSING ROWS FOR EACH COLUMN IS PLOTTED IN A HISTOGRAM.
     
     return nulls_by_col_df
 
+
 def nulls_by_row(df):
     '''
 THIS FUNCTION TAKES IN A DATAFRAME AND RETURNS INFORMATION ABOUT THE NUMBER OF COLUMN VALUES
@@ -193,3 +200,50 @@ PERCENTAGE OF COLUMN VALUES MISSING.
     df2 = df2.sort_values(by = 'pct_cols_missing', ascending = False)
     
     return df2
+
+
+##################################################################################| PREPARE
+
+###############################################################| ONE UNIT PROPERTIES
+def one_unit_filters(df):
+    '''
+    
+    '''
+    
+    #filtering rows with > 1 unit count
+    df2 = df[df.unitcnt == 1]
+    
+    #filtering rows with bedroomcnt > 5
+    df2 = df2[df2.bedroomcnt <= 5]
+    
+    #filtering propertylandtypeuseid
+    df2 = df2[df2.propertylandusetypeid.isin([260, 261, 263, 265, 266])]
+    
+    return df2
+
+
+###############################################################| HANDLE NULLS (MISSING VALUES)
+def handle_missing_values(df, prop_req_cols, prop_req_rows):
+    '''
+THIS FUNCTION TAKES IN A DATAFRAME AND REMOVES NULL VALUES FROM COLUMNS AND THEN ROWS USING THE 
+RESPECTIVE PROPORTIONS FED INTO IT USING THE DROPNA() FUNCTION.
+    '''
+    
+    # to get the minimum non-null value threshold for keeping for keeping a column
+    # a column must have at least this many non null values to be kept in the final df
+    threshold = round(prop_req_cols * len(df.index))
+    
+    # takes in the above threshold and completes permanent drop of columns with less than
+    # that many non null values
+    df.dropna(axis =1, thresh = threshold, inplace = True)
+    
+    # to get the minimum non-null value threshold for keeping for keeping a row
+    # a row must have at least this many non null values to be kept in the final df
+    threshold = round(prop_req_rows * len(df.columns))
+    
+    # takes in the above threshold and completes permanent drop of columns with less than
+    # that many non null values
+    df.dropna(axis = 0, thresh = threshold, inplace = True)
+    
+    return df   
+
