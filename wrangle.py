@@ -157,7 +157,7 @@ THIS FUNCTION TAKES IN A DF AND PLOTS A HISTOGRAM FOR EACH COLUMN.
     df.hist(figsize=((36), 32), bins=20)
     plt.tight_layout();
     
-###############################################################| NULL FUNCTIONS
+###############################################################| SEE NULLS FUNCTIONS
 def nulls_by_col(df):
     '''
 THIS FUNCTION TAKES IN A DATAFRAME AND RETURNS THE NUMBER OF ROWS MISSING FOR EACH COLUMN AND THE 
@@ -202,9 +202,41 @@ PERCENTAGE OF COLUMN VALUES MISSING.
     return df2
 
 
-##################################################################################| PREPARE
+###############################################################| VISUALIZE OUTLIERS
+def outlier_boxplots(df):
+    '''
+THIS FUNCTION TAKES IN A DATAFRAME AND, FOR ALL NUMERIC COLUMNS, DISPLAYS HORIZONTAL
+BOXPLOTS ALLOWING OUTLIERS TO BE VISUALIZED. IF A COLUMN IS NON-NUMERIC THEN THE COLUMN
+NAME ALONG WITH A PRINT STATEMENT WILL BE EXECUTED.
+    '''
+    
+    for col in df.columns:
+        if df[col].dtypes != 'O':
+            print(col.upper())
+            sns.boxplot(x = col, data = df)
+            plt.show()
+            print()
+            print()
+        else:
+            print(f'{col.upper()} is a nonnumeric dtype')
+            print()
+            print()
 
-###############################################################| ONE UNIT PROPERTIES
+
+##################################################################################| PREPARE
+###############################################################| REMOVE SELECT COLUMNS
+def remove_cols(df, cols_to_remove):
+    '''
+THIS FUNCTION TAKES IN A DF AND A LIST OF COLUMNS TO BE REMOVED AND 
+RETURNS A DF WITHOUT THOSE COLUMNS.
+    '''
+    
+    df = df.drop(columns = cols_to_remove)
+    
+    return df
+
+
+###############################################################| FILTER ONE UNIT PROPERTIES
 def one_unit_filters(df):
     '''
     
@@ -225,8 +257,9 @@ def one_unit_filters(df):
 ###############################################################| HANDLE NULLS (MISSING VALUES)
 def handle_missing_values(df, prop_req_cols, prop_req_rows):
     '''
-THIS FUNCTION TAKES IN A DATAFRAME AND REMOVES NULL VALUES FROM COLUMNS AND THEN ROWS USING THE 
-RESPECTIVE PROPORTIONS FED INTO IT USING THE DROPNA() FUNCTION.
+THIS FUNCTION TAKES IN A DATAFRAME AND REMOVES NULL VALUES FROM COLUMNS 
+AND THEN ROWS USING THE RESPECTIVE PROPORTIONS FED INTO IT USING THE 
+DROPNA() FUNCTION.
     '''
     
     # to get the minimum non-null value threshold for keeping for keeping a column
@@ -245,5 +278,62 @@ RESPECTIVE PROPORTIONS FED INTO IT USING THE DROPNA() FUNCTION.
     # that many non null values
     df.dropna(axis = 0, thresh = threshold, inplace = True)
     
-    return df   
+    return df    
 
+
+##################################################################################| MALL WRANGLE FUNCTIONS
+def outlier_function(df, cols, k):
+    '''
+THIS FUNCTION TAKES IN A DATAFRAME, A LIST OF COLUMNS TO HAVE OUTLIERS REMOVED FROM
+    '''
+    for col in df[cols]:
+        q1 = df.annual_income.quantile(0.25)
+        q3 = df.annual_income.quantile(0.75)
+        iqr = q3 - q1
+        upper_bound =  q3 + k * iqr
+        lower_bound =  q1 - k * iqr     
+        df = df[(df[col] < upper_bound) & (df[col] > lower_bound)]
+    return df
+
+
+def wrangle_mall_df():
+    '''
+THIS FUNCTION ACQUIRES AND WRANGLES THE MALL DATA. FIRST REMOVING OUTLIERS, THEN
+CREATING NUMERICAL DUMMY COL FOR CATEGORICAL GENDER COL, AND THEN SPLITTING THE DATA.
+    '''
+    
+    # acquire data
+    sql = 'select * from customers'
+    mall_df = acquire_data('mall_data.csv', 'mall_customers', sql)
+    
+    # handle outliers
+    mall_df = outlier_function(mall_df, ['age', 'spending_score', 'annual_income'], 1.5)
+    
+    # get dummy for gender column
+    dummy_df = pd.get_dummies(mall_df.gender, drop_first=True)
+    mall_df = pd.concat([mall_df, dummy_df], axis=1).drop(columns = ['gender'])
+    mall_df.rename(columns= {'Male': 'is_male'}, inplace = True)
+
+    # split the data in train, validate and test
+    train, test = train_test_split(mall_df, train_size = 0.8, random_state = 123)
+    train, validate = train_test_split(train, train_size = 0.75, random_state = 123)
+    
+    return mall_df, train, validate, test
+
+def min_max_scaler(train, valid, test):
+    '''
+    Uses the train & test datasets created by the split_my_data function
+    Returns 3 items: mm_scaler, train_scaled_mm, test_scaled_mm
+    This is a linear transformation. Values will lie between 0 and 1
+    '''
+    num_vars = list(train.select_dtypes('number').columns)
+    
+    scaler = MinMaxScaler(copy=True, feature_range=(0,1))
+    
+    train[num_vars] = scaler.fit_transform(train[num_vars])
+    
+    valid[num_vars] = scaler.transform(valid[num_vars])
+    
+    test[num_vars] = scaler.transform(test[num_vars])
+    
+    return scaler, train, valid, test
